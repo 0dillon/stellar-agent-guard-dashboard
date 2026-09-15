@@ -1,0 +1,36 @@
+{
+  "name": "stellar-agent-guard-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Operator interface for stellar-agent-guard: no-code guardrail configuration with real on-chain deployment, telemetry from the real guard events, and a panic button with confirmed on-chain effect. A pure consumer of stellar-agent-guard-sdk and Soroban RPC.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/unit/*.test.ts",
+    "prove:phase3": "node scripts/prove-phase3.ts",
+    "inspect": "node scripts/inspect-instance.ts"
+  },
+  "dependencies": {
+    "@stellar/freighter-api": "^6.0.1",
+    "@stellar/stellar-sdk": "^17.0.1",
+    "next": "^16.3.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "stellar-agent-guard-sdk": "file:vendor/stellar-agent-guard-sdk-0.1.0.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "^16.3.5",
+    "typescript": "^5.9.2"
+  }
+}
