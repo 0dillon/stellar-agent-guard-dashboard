@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      # The Phase 2 SDK is vendored as a tarball until it is published to npm, so
+      # this also verifies that the committed tarball is installable and usable.
+      # When Phase 2 publishes, this step's premise disappears with it.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Unit tests only. The integration proof (scripts/prove-phase3.ts) spends
+      # real testnet funds and needs funded testnet keys, so it is run
+      # deliberately and is not part of the CI gate.
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # The scope statement is a hard requirement of this project, not a
+      # documentation nicety: fail the build if the code, README and SPEC.md
+      # have drifted apart on what is and is not enforced.
+      - name: Enforcement-scope statement is consistent
+        run: node --test tests/unit/scopeStatement.test.ts
