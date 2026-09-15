@@ -1,0 +1,314 @@
+"use client";
+
+import { useState } from "react";
+import type { PolicyDraft } from "../lib/guard/policyForm.ts";
+import {
+  EMPTY_DRAFT,
+  buildPolicyConfig,
+  describeDraft,
+  draftFromConfig,
+} from "../lib/guard/policyForm.ts";
+import { installPolicy, revokePolicy } from "../lib/guard/guardOps.ts";
+import type { InvokeResult } from "../lib/guard/submit.ts";
+import { refusedEventsFromDiagnostics } from "../lib/guard/telemetry.ts";
+import { useGuard } from "./GuardProvider.tsx";
+import { ErrorBlock, ScopeNotice, starLink } from "./bits.tsx";
+
+/**
+ * The no-code configurator.
+ *
+ * The form is validated locally before a wallet is ever prompted, and the policy
+ * is encoded by the SDK's `policyToScVal` rather than by a hand-rolled encoder —
+ * the host converts the map into a typed struct by walking entries in a required
+ * order, so a second encoder would be a second place to get the field order wrong.
+ */
+export function PolicyForm() {
+  const { signer, guard, server, refresh, snapshot, pushEvents, wallet } = useGuard();
+
+  // `null` means "not edited yet", which is what lets the form seed itself from
+  // the installed policy without an effect: the seed is derived during render and
+  // the operator's first keystroke takes over from it.
+  const [draft, setDraft] = useState<PolicyDraft | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<
+    { kind: "invalid"; issues: string[] } | { kind: "invoked"; result: InvokeResult } | null
+  >(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Editing starts from the policy that is actually installed, not from an empty
+  // form that looks like a reset. With nothing installed yet, it starts empty.
+  const installedDraft =
+    snapshot?.policy.ok && snapshot.policy.value !== null
+      ? draftFromConfig(snapshot.policy.value)
+      : EMPTY_DRAFT;
+  const effective = draft ?? installedDraft;
+
+  const validation = buildPolicyConfig(effective);
+  const issues = validation.ok ? [] : validation.issues;
+
+  function set<K extends keyof PolicyDraft>(key: K, value: PolicyDraft[K]) {
+    setDraft((current) => ({ ...(current ?? installedDraft), [key]: value }));
+  }
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    setOutcome(null);
+    try {
+      const result = await installPolicy({ server, signer: signer(), guard, draft: effective });
+      setOutcome(result);
+      if (result.kind === "invoked" && result.result.kind === "refused") {
+        pushEvents(refusedEventsFromDiagnostics(result.result.diagnosticEvents, guard));
+      }
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke() {
+    setBusy(true);
+    setError(null);
+    setOutcome(null);
+    try {
+      const result = await revokePolicy({ server, signer: signer(), guard });
+      setOutcome({ kind: "invoked", result });
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel">
+      <h2>Guardrail policy</h2>
+      <ScopeNotice />
+      <p className="tiny muted">
+        Installing a policy resets the rolling window and restarts the dead-man-switch clock, so a
+        freshly installed policy always starts with full grace.
+      </p>
+
+      <div className="split" style={{ marginTop: 14 }}>
+        <div>
+          <label className="field">
+            <span className="lbl">Per-transaction cap (blank = off)</span>
+            <input
+              value={effective.perTxCap}
+              inputMode="numeric"
+              onChange={(event) => set("perTxCap", event.target.value)}
+              placeholder="1000"
+            />
+            <span className="hint">Largest single SAC transfer the account will authorize.</span>
+          </label>
+
+          <label className="field">
+            <span className="lbl">Rolling-window cap (blank = off)</span>
+            <input
+              value={effective.windowCap}
+              inputMode="numeric"
+              onChange={(event) => set("windowCap", event.target.value)}
+              placeholder="150"
+            />
+            <span className="hint">
+              Total spend allowed inside a genuinely rolling window — not a fixed bucket that resets.
+            </span>
+          </label>
+
+          <label className="field">
+            <span className="lbl">Rolling-window length (seconds)</span>
+            <input
+              value={effective.windowSecs}
+              inputMode="numeric"
+              onChange={(event) => set("windowSecs", event.target.value)}
+              placeholder="86400"
+            />
+            <span className="hint">How far back the rolling sum looks.</span>
+          </label>
+
+          <label className="field">
+            <span className="lbl">Dead-man grace (seconds, blank = off)</span>
+            <input
+              value={effective.dmsGraceSecs}
+              inputMode="numeric"
+              onChange={(event) => set("dmsGraceSecs", event.target.value)}
+              placeholder="skip"
+            />
+            <span className="hint">
+              Freeze the account automatically if the agent has not heartbeated within this many
+              seconds.
+            </span>
+          </label>
+
+          <span className="lbl">Active from / until (unix seconds, blank = unrestricted)</span>
+          <div className="row" style={{ marginBottom: 12 }}>
+            <input
+              value={effective.activeFrom}
+              inputMode="numeric"
+              onChange={(event) => set("activeFrom", event.target.value)}
+              placeholder="from"
+              aria-label="Active from"
+            />
+            <input
+              value={effective.activeUntil}
+              inputMode="numeric"
+              onChange={(event) => set("activeUntil", event.target.value)}
+              placeholder="until"
+              aria-label="Active until"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="field">
+            <span className="lbl">Assets — SAC token contracts (one per line)</span>
+            <textarea
+              rows={3}
+              value={effective.assets}
+              onChange={(event) => set("assets", event.target.value)}
+              placeholder="CDCYDGBGS5AZ5BZS6XY2SK2PHJHSOEGTN3N4INCK34KF6GU2BGC7Z6MB"
+            />
+            <span className="hint">
+              Transfers of these tokens get full recipient and amount enforcement.
+            </span>
+          </label>
+
+          <label className="field">
+            <span className="lbl">Recipients (one per line)</span>
+            <textarea
+              rows={3}
+              value={effective.recipients}
+              onChange={(event) => set("recipients", event.target.value)}
+              placeholder="GAOBCRXTCO4ZCBNHALJUMJJ5JDXNOUZ7U6VZJX4UBTXAHQEO66IPU6PH"
+            />
+          </label>
+
+          <div className="checkline">
+            <input
+              id="allow-any"
+              type="checkbox"
+              checked={effective.allowAnyRecipient}
+              onChange={(event) => set("allowAnyRecipient", event.target.checked)}
+            />
+            <label htmlFor="allow-any">
+              Allow any recipient (the caps still apply)
+              <span className="hint">
+                With this off, a transfer to an address that is not listed is refused.
+              </span>
+            </label>
+          </div>
+
+          <label className="field">
+            <span className="lbl">Protocols — allowlisted contracts (one per line)</span>
+            <textarea
+              rows={3}
+              value={effective.protocols}
+              onChange={(event) => set("protocols", event.target.value)}
+              placeholder="C…  or  C…:swap,deposit   (no colon = any function)"
+            />
+            <span className="hint">
+              Calls to contracts outside this list are refused. Window and pause state still apply to
+              these calls; per-call amount and recipient limits do not.
+            </span>
+          </label>
+
+          <div className="checkline">
+            <input
+              id="paused"
+              type="checkbox"
+              checked={effective.paused}
+              onChange={(event) => set("paused", event.target.checked)}
+            />
+            <label htmlFor="paused">
+              Start paused
+              <span className="hint">Installs the policy but refuses every call until resumed.</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <h3>Review</h3>
+      <p className="tiny mono">{describeDraft(effective)}</p>
+
+      {issues.length > 0 && (
+        <div className="error">
+          <span className="t">This policy is not valid yet</span>
+          <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+            {issues.map((issue) => (
+              <li key={`${issue.field}-${issue.message}`} className="tiny">
+                {issue.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="row" style={{ marginTop: 14 }}>
+        <button disabled={!wallet || busy || issues.length > 0} onClick={() => void submit()}>
+          {busy ? "Working…" : "Sign and install policy"}
+        </button>
+        <button className="secondary" disabled={!wallet || busy} onClick={() => void revoke()}>
+          Revoke policy (default deny)
+        </button>
+        <button className="secondary" onClick={() => setDraft(EMPTY_DRAFT)} disabled={busy}>
+          Clear form
+        </button>
+        <button
+          className="secondary"
+          onClick={() => setDraft(null)}
+          disabled={busy || draft === null}
+          title="Discard edits and load the policy currently installed on chain"
+        >
+          Load installed
+        </button>
+      </div>
+
+      {error && <ErrorBlock title="The policy write did not complete" detail={error} />}
+
+      {outcome?.kind === "invoked" && <OutcomeBlock result={outcome.result} verb="set_policy" />}
+      {outcome?.kind === "invalid" && (
+        <ErrorBlock
+          title="The policy was rejected before signing"
+          detail={outcome.issues.join("; ")}
+        />
+      )}
+    </div>
+  );
+}
+
+export function OutcomeBlock({ result, verb }: { result: InvokeResult; verb: string }) {
+  if (result.kind === "submitted") {
+    return (
+      <div className="notice info">
+        <strong>
+          {verb} landed on chain — {starLink(result.hash)}
+        </strong>
+        <span className="tiny">
+          Ledger {result.ledger ?? "—"}. The panel above re-reads the contract to show the policy that
+          is actually installed; this receipt proves the write, not that it did what you expected.
+        </span>
+      </div>
+    );
+  }
+  if (result.kind === "refused") {
+    return (
+      <div className="error">
+        <span className="t">
+          Refused during {result.stage} — nothing was broadcast, so this cost nothing
+        </span>
+        <span className="mono tiny">{result.detail}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="error">
+      <span className="t">
+        Broadcast but rejected on chain — {starLink(result.hash)}
+      </span>
+      <span className="mono tiny">{result.detail}</span>
+    </div>
+  );
+}
