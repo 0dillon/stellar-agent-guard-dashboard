@@ -1,0 +1,108 @@
+/**
+ * The Freighter wallet adapter.
+ *
+ * This is the only module in the guard library that touches a browser
+ * extension, which is deliberate: everything else takes a `WalletSigner`, so the
+ * same code paths run headlessly in Node against a keypair-backed signer and in
+ * the browser against the operator's wallet.
+ *
+ * The dashboard never receives, stores or transmits a secret key. Every
+ * signature is produced inside the wallet, over a payload the wallet displays.
+ */
+
+import { getAddress, requestAccess, signAuthEntry, signTransaction } from "@stellar/freighter-api";
+import type { WalletSigner } from "./submit.ts";
+
+export class WalletError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WalletError";
+  }
+}
+
+/** Freighter reports failures in a field rather than by throwing; surface them as errors. */
+interface WithError {
+  error?: { message?: string } | null;
+}
+
+function assertNoError(result: unknown, action: string): void {
+  const error = (result as WithError | null)?.error;
+  if (error) {
+    throw new WalletError(
+      `${action} failed in the wallet: ${error.message ?? JSON.stringify(error)}`,
+    );
+  }
+}
+
+export interface ConnectedWallet {
+  address: string;
+  networkPassphrase: string;
+  network: string;
+}
+
+/**
+ * Ask the wallet for access and report which network it is on.
+ *
+ * The network is returned rather than assumed because it decides whether the
+ * dashboard may proceed at all: signing a call against a guard address on
+ * testnet while the wallet is pointed at pubnet produces a signature over a
+ * different network id, so the correct behaviour is to refuse up front rather
+ * than to let the operator approve something that cannot work.
+ */
+export async function connectWallet(): Promise<ConnectedWallet> {
+  const granted = await requestAccess();
+  assertNoError(granted, "requestAccess");
+  const address = (granted as { address?: string }).address;
+  if (!address) throw new WalletError("the wallet returned no address");
+
+  const network = await getNetworkPassphrase();
+  return { address, networkPassphrase: network.passphrase, network: network.network };
+}
+
+/** The wallet's current address, if access was already granted. */
+export async function currentAddress(): Promise<string | null> {
+  const result = await getAddress();
+  if ((result as WithError).error) return null;
+  return (result as { address?: string }).address ?? null;
+}
+
+async function getNetworkPassphrase(): Promise<{ network: string; passphrase: string }> {
+  const details = await import("@stellar/freighter-api").then((api) => api.getNetworkDetails());
+  assertNoError(details, "getNetworkDetails");
+  const record = details as { network?: string; networkPassphrase?: string };
+  return {
+    network: record.network ?? "UNKNOWN",
+    passphrase: record.networkPassphrase ?? "",
+  };
+}
+
+/**
+ * A `WalletSigner` backed by the extension.
+ *
+ * `networkPassphrase` is pinned by the caller to the network the dashboard is
+ * configured for, so the wallet is asked to sign for that network explicitly
+ * rather than for whatever it happens to be showing.
+ */
+export function freighterSigner(address: string, networkPassphrase: string): WalletSigner {
+  return {
+    address,
+    async signTransaction(transactionXdr: string): Promise<string> {
+      const result = await signTransaction(transactionXdr, { networkPassphrase, address });
+      assertNoError(result, "signTransaction");
+      const signed = (result as { signedTxXdr?: string }).signedTxXdr;
+      if (!signed) throw new WalletError("the wallet returned no signed transaction");
+      return signed;
+    },
+    async signAuthEntry(entryXdr: string): Promise<string> {
+      const result = await signAuthEntry(entryXdr, { networkPassphrase, address });
+      assertNoError(result, "signAuthEntry");
+      const signed = (result as { signedAuthEntry?: string | null }).signedAuthEntry;
+      if (!signed) {
+        throw new WalletError(
+          "the wallet declined to sign the authorization entry; the call was not submitted",
+        );
+      }
+      return signed;
+    },
+  };
+}
