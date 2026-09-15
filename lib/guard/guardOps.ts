@@ -1,0 +1,491 @@
+/**
+ * The guard operations an operator actually performs, in the operator's terms.
+ *
+ * Every write goes through `invokeWithWallet` or `submitOperation`, so every
+ * write is signed by the operator's own wallet and every write is preceded by an
+ * enforced simulation that can refuse it. Nothing here can broadcast without a
+ * signature.
+ */
+
+import { Account, Address, Operation, TransactionBuilder, rpc, xdr } from "@stellar/stellar-sdk";
+import type { GuardStatus, PolicyConfig } from "stellar-agent-guard-sdk";
+import { NETWORK, PHASE1_ARTIFACT } from "./network.ts";
+import { buildPolicyConfig, type PolicyDraft } from "./policyForm.ts";
+import {
+  fetchContractWasm,
+  predictContractId,
+  readPolicy,
+  readStatus,
+  readWindow,
+  verifyWasmIdentity,
+  type ReadResult,
+  type WasmIdentity,
+  type WindowState,
+} from "./chain.ts";
+import {
+  describeRejectedResult,
+  invokeWithWallet,
+  type InvokeResult,
+  type WalletSigner,
+} from "./submit.ts";
+import { addressToScVal, hexToBytes, sha256Hex } from "./scval.ts";
+
+// ── Artifact identity ──────────────────────────────────────────────────────
+
+export interface ArtifactCheck {
+  /** The hash this build is willing to deploy. */
+  pinnedHash: string;
+  pinnedBytes: number;
+  /** What Phase 1's instance actually runs, read live from the chain. */
+  live: WasmIdentity;
+  /** True only when the live bytes hash to the pinned hash. */
+  ok: boolean;
+  detail: string;
+}
+
+/**
+ * Re-derive the Phase 1 artifact's identity from the chain, right now.
+ *
+ * This is the gate on deployment: if the bytes Phase 1's instance runs do not
+ * hash to the pin this build carries, the dashboard refuses to deploy anything.
+ * A "real deploy" that quietly shipped different bytecode than the one that was
+ * proven would be worse than no deploy at all.
+ */
+export async function checkArtifact(server: rpc.Server): Promise<ArtifactCheck> {
+  const live = await verifyWasmIdentity(server, PHASE1_ARTIFACT.guard);
+  const hashMatch = live.fetchedSha256 === PHASE1_ARTIFACT.wasmHash;
+  const sizeMatch = live.bytes === PHASE1_ARTIFACT.wasmBytes;
+  const ok = hashMatch && sizeMatch && live.match;
+  return {
+    pinnedHash: PHASE1_ARTIFACT.wasmHash,
+    pinnedBytes: PHASE1_ARTIFACT.wasmBytes,
+    live,
+    ok,
+    detail: ok
+      ? `Phase 1's instance runs ${live.fetchedSha256.slice(0, 16)}… (${live.bytes} bytes), matching the pinned artifact`
+      : [
+          "the artifact on chain does not match the pinned artifact — refusing to deploy",
+          `  ledger reports ${live.reportedWasmHash ?? "(none)"}`,
+          `  fetched bytes hash to ${live.fetchedSha256} (${live.bytes} bytes)`,
+          `  this build pins  ${PHASE1_ARTIFACT.wasmHash} (${PHASE1_ARTIFACT.wasmBytes} bytes)`,
+        ].join("\n"),
+  };
+}
+
+/**
+ * Is the pinned bytecode already a live `ContractCode` entry?
+ *
+ * Soroban keys stored code by its hash, so an instance can be created by
+ * referencing a hash that is already uploaded — normally making a deploy a single
+ * transaction. But that entry has a TTL, so assuming it is still live would turn
+ * an expired entry into a confusing host error in the middle of signing.
+ */
+export async function artifactCodePresent(
+  server: rpc.Server,
+  wasmHash: string,
+): Promise<ReadResult<boolean>> {
+  try {
+    const key = xdr.LedgerKey.contractCode(
+      new xdr.LedgerKeyContractCode({ hash: hexToBytes(wasmHash) }),
+    );
+    const response = await server.getLedgerEntries(key);
+    return { ok: true, value: response.entries.length > 0 };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+// ── Submitting a non-contract-call operation ───────────────────────────────
+
+/**
+ * Submit a single prepared operation through the wallet.
+ *
+ * `invokeWithWallet` is shaped for contract calls, because that is what the
+ * dashboard mostly does. Creating a contract and uploading bytecode are host
+ * functions with no call phase and no authorizations to walk, so they take this
+ * narrower path — still the same simulate → sign → submit discipline.
+ */
+export async function submitOperation(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  operation: xdr.Operation;
+  passphrase?: string;
+}): Promise<InvokeResult> {
+  const passphrase = params.passphrase ?? NETWORK.passphrase;
+  const { server, signer } = params;
+
+  let account: Account;
+  try {
+    account = await server.getAccount(signer.address);
+  } catch (error) {
+    return {
+      kind: "refused",
+      stage: "discovery",
+      detail: `could not load account ${signer.address}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      diagnosticEvents: [],
+    };
+  }
+
+  // Host-function operations must declare real Soroban resources *and* carry the
+  // authorizations the host recorded, so this uses the RPC's own prepare step —
+  // the same path the contracts repo's deploy tooling uses. Preparing is not
+  // optional dressing: a `create_contract` submitted without its recorded
+  // authorization entry is included and then rejected by the host as
+  // `Error(Auth, InvalidAction)`, which reads like a permissions surprise and is
+  // really just a missing entry.
+  //
+  // This narrow path is only for operations the source account itself authorizes
+  // (deploy, upload). Contract calls the operator makes as *admin* go through
+  // `invokeWithWallet`, which walks and wallet-signs address credentials properly.
+  const built = new TransactionBuilder(new Account(signer.address, account.sequenceNumber()), {
+    fee: "1000000",
+    networkPassphrase: passphrase,
+  })
+    .addOperation(params.operation)
+    .setTimeout(60)
+    .build();
+
+  let prepared;
+  try {
+    prepared = await server.prepareTransaction(built);
+  } catch (error) {
+    return {
+      kind: "refused",
+      stage: "enforcement",
+      detail: error instanceof Error ? error.message : String(error),
+      diagnosticEvents: [],
+    };
+  }
+
+  const signedXdr = await signer.signTransaction(prepared.toXDR());
+  const transaction = TransactionBuilder.fromXDR(signedXdr, passphrase);
+
+  const sent = await server.sendTransaction(transaction);
+  if (sent.status === "ERROR") {
+    return {
+      kind: "refused",
+      stage: "submission",
+      detail: JSON.stringify(sent.errorResult ?? sent),
+      diagnosticEvents: [],
+    };
+  }
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    const result = await server.getTransaction(sent.hash).catch(() => null);
+    if (!result) continue;
+    if (result.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+      return {
+        kind: "submitted",
+        hash: sent.hash,
+        status: result.status,
+        ledger: (result as { ledger?: number }).ledger ?? null,
+        events: (result as { events?: unknown }).events ?? null,
+      };
+    }
+    if (result.status === rpc.Api.GetTransactionStatus.FAILED) {
+      return {
+        kind: "failed",
+        hash: sent.hash,
+        detail: `transaction ${sent.hash} was included and rejected (${describeRejectedResult(
+          result,
+        )})`,
+        diagnosticEvents:
+          (result as { diagnosticEventsXdr?: unknown[] }).diagnosticEventsXdr ?? [],
+      };
+    }
+  }
+  return {
+    kind: "failed",
+    hash: sent.hash,
+    detail: `timed out waiting for ${sent.hash}`,
+    diagnosticEvents: [],
+  };
+}
+
+// ── Deploy ─────────────────────────────────────────────────────────────────
+
+export interface DeployPlan {
+  /** The address the guard will have, computed before anything is signed. */
+  predicted: string;
+  deployerPublicKey: string;
+  salt: Uint8Array;
+  artifactOk: boolean;
+  artifactDetail: string;
+  codePresent: boolean;
+}
+
+/** Work out what a deploy would do, without signing anything. */
+export async function planDeploy(
+  server: rpc.Server,
+  deployerPublicKey: string,
+  salt: Uint8Array,
+): Promise<DeployPlan> {
+  const artifact = await checkArtifact(server);
+  const present = await artifactCodePresent(server, PHASE1_ARTIFACT.wasmHash);
+  return {
+    predicted: await predictContractId({ deployerPublicKey, salt }),
+    deployerPublicKey,
+    salt,
+    artifactOk: artifact.ok,
+    artifactDetail: artifact.detail,
+    codePresent: present.ok ? present.value : false,
+  };
+}
+
+export interface DeployStep {
+  label: string;
+  result: InvokeResult;
+}
+
+export interface DeployOutcome {
+  guard: string;
+  steps: DeployStep[];
+  /** The deployed instance's identity, re-read from the chain after the create. */
+  identity: WasmIdentity | null;
+  /** True only when the created instance runs the pinned artifact. */
+  verified: boolean;
+}
+
+export class GuardOperationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GuardOperationError";
+  }
+}
+
+/**
+ * Deploy a new guard instance of the pinned Phase 1 artifact.
+ *
+ * Order matters and is enforced: verify the artifact off the chain, make sure its
+ * code entry is live (uploading the exact bytes if it is not), create the contract
+ * at a predicted address, then read the new instance back and check it runs the
+ * pinned hash. The last step is what turns "the wallet approved a deploy" into
+ * "an instance of the proven artifact now exists at this address".
+ */
+export async function deployGuard(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  salt: Uint8Array;
+  onStep?: (step: DeployStep) => void;
+  passphrase?: string;
+}): Promise<DeployOutcome> {
+  const { server, signer, salt } = params;
+  const steps: DeployStep[] = [];
+  const record = (label: string, result: InvokeResult): void => {
+    const step = { label, result };
+    steps.push(step);
+    params.onStep?.(step);
+  };
+
+  const artifact = await checkArtifact(server);
+  if (!artifact.ok) throw new GuardOperationError(artifact.detail);
+
+  const predicted = await predictContractId({
+    deployerPublicKey: signer.address,
+    salt,
+    passphrase: params.passphrase,
+  });
+
+  // ── Ensure the exact bytecode is a live code entry ─────────────────────
+  const present = await artifactCodePresent(server, PHASE1_ARTIFACT.wasmHash);
+  if (!present.ok) throw new GuardOperationError(`could not read the code entry: ${present.error}`);
+  if (!present.value) {
+    const wasm = await fetchContractWasm(server, PHASE1_ARTIFACT.guard);
+    const fetchedHash = await sha256Hex(wasm);
+    if (fetchedHash !== PHASE1_ARTIFACT.wasmHash) {
+      throw new GuardOperationError(
+        `refusing to upload: fetched bytes hash to ${fetchedHash}, not the pinned ${PHASE1_ARTIFACT.wasmHash}`,
+      );
+    }
+    const upload = await submitOperation({
+      server,
+      signer,
+      operation: Operation.uploadContractWasm({ wasm }),
+      passphrase: params.passphrase,
+    });
+    record(`upload_contract_wasm (${PHASE1_ARTIFACT.wasmBytes} bytes)`, upload);
+    if (upload.kind !== "submitted") {
+      return { guard: predicted, steps, identity: null, verified: false };
+    }
+  }
+
+  const create = await submitOperation({
+    server,
+    signer,
+    operation: Operation.createCustomContract({
+      address: Address.fromString(signer.address),
+      wasmHash: hexToBytes(PHASE1_ARTIFACT.wasmHash),
+      salt,
+      constructorArgs: [],
+    }),
+    passphrase: params.passphrase,
+  });
+  record(
+    `create_custom_contract (wasm ${PHASE1_ARTIFACT.wasmHash.slice(0, 12)}…) → ${predicted}`,
+    create,
+  );
+  if (create.kind !== "submitted") {
+    return { guard: predicted, steps, identity: null, verified: false };
+  }
+
+  const identity = await verifyWasmIdentity(server, predicted);
+  return {
+    guard: predicted,
+    steps,
+    identity,
+    verified:
+      identity.fetchedSha256 === PHASE1_ARTIFACT.wasmHash &&
+      identity.bytes === PHASE1_ARTIFACT.wasmBytes,
+  };
+}
+
+// ── Initialize, policy, freeze ─────────────────────────────────────────────
+
+/** Register the admin (the connected wallet) and the agent's raw Ed25519 key. */
+export async function initializeGuard(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  guard: string;
+  agentPubkeyHex: string;
+  passphrase?: string;
+}): Promise<InvokeResult> {
+  const pubkey = hexToBytes(params.agentPubkeyHex.trim());
+  if (pubkey.length !== 32) {
+    return {
+      kind: "refused",
+      stage: "discovery",
+      detail: `the agent public key must be 32 raw Ed25519 bytes, got ${pubkey.length}`,
+      diagnosticEvents: [],
+    };
+  }
+  return invokeWithWallet({
+    server: params.server,
+    contract: params.guard,
+    fn: "initialize",
+    args: [addressToScVal(params.signer.address), xdr.ScVal.scvBytes(pubkey)],
+    signer: params.signer,
+    passphrase: params.passphrase,
+  });
+}
+
+/** Install a policy, validating the draft in the form first. */
+export async function installPolicy(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  guard: string;
+  draft: PolicyDraft;
+  passphrase?: string;
+}): Promise<
+  { kind: "invalid"; issues: string[] } | { kind: "invoked"; result: InvokeResult }
+> {
+  const built = buildPolicyConfig(params.draft);
+  if (!built.ok) return { kind: "invalid", issues: built.issues.map((i) => `${i.field}: ${i.message}`) };
+  const result = await invokeWithWallet({
+    server: params.server,
+    contract: params.guard,
+    fn: "set_policy",
+    args: [built.scval],
+    signer: params.signer,
+    passphrase: params.passphrase,
+  });
+  return { kind: "invoked", result };
+}
+
+/** The panic button: freeze the account. Admin-authorized, reversible by `unfreeze`. */
+export function freezeGuard(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  guard: string;
+  passphrase?: string;
+}): Promise<InvokeResult> {
+  return invokeWithWallet({
+    server: params.server,
+    contract: params.guard,
+    fn: "freeze",
+    args: [],
+    signer: params.signer,
+    passphrase: params.passphrase,
+  });
+}
+
+/**
+ * Reverse a freeze.
+ *
+ * `unfreeze` clears the admin freeze *and* restarts the heartbeat clock, so it is
+ * the reversal path for a dead-man-switch freeze as well — which is why the
+ * dashboard offers it beside the panic button rather than behind a separate flow.
+ * The agent's own `heartbeat()` is the other way back, and it needs the agent's
+ * key inside the smart account, so it belongs to the SDK's runtime, not here.
+ */
+export function unfreezeGuard(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  guard: string;
+  passphrase?: string;
+}): Promise<InvokeResult> {
+  return invokeWithWallet({
+    server: params.server,
+    contract: params.guard,
+    fn: "unfreeze",
+    args: [],
+    signer: params.signer,
+    passphrase: params.passphrase,
+  });
+}
+
+/** `revoke_policy()` — the account goes back to default-deny. */
+export function revokePolicy(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  guard: string;
+  passphrase?: string;
+}): Promise<InvokeResult> {
+  return invokeWithWallet({
+    server: params.server,
+    contract: params.guard,
+    fn: "revoke_policy",
+    args: [],
+    signer: params.signer,
+    passphrase: params.passphrase,
+  });
+}
+
+// ── State ──────────────────────────────────────────────────────────────────
+
+/**
+ * Everything the UI shows about one guard, with each read carrying its own
+ * success or failure.
+ *
+ * There is deliberately no "default to zero on failure" path: a dashboard that
+ * renders `0` when the RPC is unreachable is showing mock state that looks
+ * exactly like real state, which is the one thing this interface must not do.
+ */
+export interface GuardSnapshot {
+  guard: string;
+  fetchedAt: string;
+  status: ReadResult<GuardStatus>;
+  policy: ReadResult<PolicyConfig | null>;
+  window: ReadResult<WindowState | null>;
+  identity: ReadResult<WasmIdentity>;
+}
+
+export async function readGuardSnapshot(
+  server: rpc.Server,
+  guard: string,
+  source?: string,
+): Promise<GuardSnapshot> {
+  const [status, policy, window, identity] = await Promise.all([
+    readStatus(server, guard, source),
+    readPolicy(server, guard, source),
+    readWindow(server, guard),
+    verifyWasmIdentity(server, guard)
+      .then((value): ReadResult<WasmIdentity> => ({ ok: true, value }))
+      .catch((error): ReadResult<WasmIdentity> => ({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      })),
+  ]);
+  return { guard, fetchedAt: new Date().toISOString(), status, policy, window, identity };
+}
