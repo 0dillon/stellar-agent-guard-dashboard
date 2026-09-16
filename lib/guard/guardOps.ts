@@ -452,6 +452,33 @@ export function revokePolicy(params: {
   });
 }
 
+/** Rotate the registered agent Ed25519 keypair. Admin-authorized. */
+export async function rotateAgentKey(params: {
+  server: rpc.Server;
+  signer: WalletSigner;
+  guard: string;
+  newAgentPubkeyHex: string;
+  passphrase?: string;
+}): Promise<InvokeResult> {
+  const pubkey = hexToBytes(params.newAgentPubkeyHex.trim());
+  if (pubkey.length !== 32) {
+    return {
+      kind: "refused",
+      stage: "discovery",
+      detail: `the new agent public key must be 32 raw Ed25519 bytes, got ${pubkey.length}`,
+      diagnosticEvents: [],
+    };
+  }
+  return invokeWithWallet({
+    server: params.server,
+    contract: params.guard,
+    fn: "rotate_agent_key",
+    args: [xdr.ScVal.scvBytes(pubkey)],
+    signer: params.signer,
+    passphrase: params.passphrase,
+  });
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 
 /**
