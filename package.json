@@ -2,6 +2,7 @@
   "name": "stellar-agent-guard-dashboard",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Operator interface for stellar-agent-guard: no-code guardrail configuration with real on-chain deployment, telemetry from the real guard events, and a panic button with confirmed on-chain effect. A pure consumer of stellar-agent-guard-sdk and Soroban RPC.",
   "engines": {
