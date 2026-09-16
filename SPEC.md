@@ -191,21 +191,6 @@ An empty feed is therefore **not** evidence that nothing was refused on chain, a
 
 ---
 
-## 8. Phase gate
-
-This repo's phase commitment is sequential: Phase 3 begins once Phase 2's exit criteria are met.
-They are not met — the SDK is unpublished, its CI workflow is not on `main`, and its Phase 2 PR is
-open — so the SDK is consumed as a locally built tarball of commit `9103ae9`.
-
-What that does and does not affect:
-
-- **Unaffected:** the artifact gate, the deploy, `initialize`, `set_policy`, `freeze`/`unfreeze`, the
-  status and window reads, the event vocabulary. All of these are proven against the real, public
-  Phase 1 deployment and the real testnet RPC.
-- **Provisional:** the end-to-end claim, because it currently runs through an unpublished SDK.
-
-The gate is removed when Phase 2 publishes and the tarball dependency is replaced with the published
-version — at which point this section is deleted rather than softened.
 
 ---
 
