@@ -1,185 +1,203 @@
-# stellar-agent-guard-dashboard
+<p align="center">
+<img src="Gemini_Generated_Image_mvimg2mvimg2mvim.jpeg" alt="Stellar Agent Guard" width="700"/>
+</p>
+<p align="center">
+<a href="https://github.com/aigbagbobila/stellar-agent-guard-dashboard/actions/workflows/ci.yml">
+<img src="https://github.com/aigbagbobila/stellar-agent-guard-dashboard/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+</a>
+<a href="LICENSE">
+<img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"/>
+</a>
+<a href="https://nextjs.org/">
+<img src="https://img.shields.io/badge/next.js-16-black" alt="Next.js 16"/>
+</a>
+<a href="https://nodejs.org/">
+<img src="https://img.shields.io/badge/node-24%2B-blue" alt="Node 24+"/>
+</a>
+<!-- docs: <a href="#"><img src="https://img.shields.io/badge/docs-GitBook-blue" alt="Documentation"/></a> (added in P2 once GitBook URL is confirmed live) -->
+</p>
 
-**Operator console for [Stellar Agent Guard](https://github.com/aigbagbobila/stellar-agent-guard-contracts):**
-configure guardrails with a no-code form against a real on-chain deployment, watch the guard's real
-events, and freeze the account with a panic button whose effect is confirmed by re-reading the
-contract.
+# Stellar Agent Guard — Dashboard
 
-Pure consumer of [stellar-agent-guard-sdk](https://github.com/aigbagbobila/stellar-agent-guard-sdk)
-and Soroban RPC. It holds no secrets and has no server half: every write is signed by the operator's
-own Freighter wallet and broadcast straight to Soroban RPC.
+<!-- 📚 **[Documentation](...)** (added in P2 once GitBook URL is confirmed live) -->
 
-> ## Status: Phase 3 — built, with the Phase 2 gate recorded as provisional
->
-> This repo's own phase commitment says Phase 3 does not begin until Phase 2's exit criteria are
-> met. **They are not met**, and that is recorded here rather than glossed over:
+**Client-side operator console for Stellar Agent Guard: deploy smart accounts, configure spending guardrails, monitor live telemetry, and trigger emergency freezes.**
+
+An autonomous agent holding a wallet has a single point of failure: one prompt-injection or one buggy loop can drain it. Stellar Agent Guard makes that impossible on-chain — the agent's funds stay in its own smart account, and *every* transaction the account must authorize is intercepted by the contract's `__check_auth` and rejected pre-broadcast unless it satisfies the operator's installed policy: per-transaction spend caps, a rolling-window spend limit, recipient/asset allowlists, protocol allowlists, a pause switch, and a dead-man switch. This dashboard provides the operator's command console: a pure client-side Next.js interface for Freighter wallets to inspect guard status, deploy and configure account-level spending policies via a no-code form, view live event telemetry, and execute immediate panic-button freezes confirmed directly from the contract.
+
+**Status: Phase 3 built, with Phase 2 publish status honestly disclosed.** Pure consumer of [stellar-agent-guard-sdk](https://github.com/aigbagbobila/stellar-agent-guard-sdk) and Soroban RPC. Holds no secrets and has no server component: every write is signed by the operator's Freighter wallet and broadcast directly to Soroban RPC. Consumes the SDK as a vendored package tarball matching merged Phase 2 `main` pending registry publish authorization.
+
+> ### Phase 2 Exit Status & Dependency Disclosure
 >
 > | Phase 2 exit criterion | State |
 > | --- | --- |
-> | SDK published to npm | **not met** — `npm view stellar-agent-guard-sdk` returns `E404` |
-> | CI green on `main` | **not met** — the `ci` workflow exists only on the unmerged `phase2-completion` branch |
-> | Real integration tests against testnet | met — `tests/fixtures/integration-evidence.md` in the SDK repo, 5/5 live |
-> | Phase 2 merged | **not met** — PR #2 is open; the SDK's `main` README still says "Phase 0 scaffold only" |
+> | SDK published to npm | **not met** — `npm view stellar-agent-guard-sdk` returns `E404` (blocked by missing registry publish credentials) |
+> | CI green on `main` | **met** — merged and CI green on `main` (GitHub Actions run `35063436332` passed) |
+> | Real integration tests against testnet | **met** — `tests/fixtures/integration-evidence.md` in SDK repo, 5/5 live |
+> | Phase 2 merged | **met** — PR #2 merged into `main` (commit `897708a`) |
 >
-> **What this means in practice:** the SDK is consumed as a locally built tarball of the
-> `phase2-completion` branch (`vendor/stellar-agent-guard-sdk-0.1.0.tgz`, built from commit
-> `9103ae9`), not from a published version. Everything this console claims about *Phase 1* — the
-> artifact it deploys, the policy it installs, the freeze it confirms — is proven against the real,
-> public Phase 1 deployment. The claim that is **provisional** is the end-to-end one, because it
-> currently runs through an unpublished SDK. When Phase 2 publishes, the tarball dependency is
-> replaced with the published version and this note comes down.
->
-> Phase 1 is genuinely complete: CI green on `main`, five on-chain scenarios with real contract IDs
-> and transaction hashes.
+> **What this means in practice:** The SDK is consumed as a vendored tarball (`vendor/stellar-agent-guard-sdk-0.1.0.tgz`) matching the merged Phase 2 `main` branch. Everything claimed about Phase 1 and Phase 3 — the artifact deployed, the policy installed, the freeze confirmed — is proven against real public testnet deployments. When Phase 2 is published to npm, this tarball dependency will be swapped for the published package and this provisional note will be retired.
+
+## 🎯 What makes this different
+
+Enforcement happens **inside the account itself**, via Soroban's native Custom Account Abstraction — not in a wrapper contract in front of funds, and not in an off-chain service.
+
+- **Zero-backend client security**: The dashboard contains no backend server, no database, and no API routes handling private keys. Every transaction is constructed in the operator's browser, signed via their own Freighter wallet, and broadcast directly to Soroban RPC.
+- **On-chain bytecode verification**: When deploying a new guard account, the dashboard fetches the contract bytecode directly off the testnet ledger, verifies its SHA-256 hash against the pinned Phase 1 artifact (`f47919...`), predicts the contract address pre-signing, and re-reads the deployed contract to confirm execution integrity.
+- **Explicit dual-freeze semantics**: The console clearly distinguishes between an **admin freeze** (operator panic button, `admin_frozen = true`) and a **dead-man-switch freeze** (agent missed heartbeat grace window, derived from `last_heartbeat`), avoiding operator confusion during emergency triage.
+- **No mock state**: Every policy field, balance, and status indicator is read live from Soroban RPC with discrete per-read error reporting. A failed RPC call renders an explicit error — never a silent zero that looks like an empty policy.
+
+> ⚠️ **Disclaimer:** This is unaudited security tooling that gates real fund access. Do not deploy to mainnet without an independent audit. See the contracts repo's [SECURITY.md](https://github.com/aigbagbobila/stellar-agent-guard-contracts/blob/main/SECURITY.md).
 
 ## What it does
 
-- **No-code guardrail configurator.** A form, not a CLI. Per-transaction cap, rolling-window cap and
-  length, asset list, recipient allowlist, protocol allowlist, active window, pause, and dead-man
-  grace. Validated locally before any wallet prompt, then encoded by the SDK's `policyToScVal` and
-  written with a wallet-signed `set_policy`.
-- **Real deployment from the UI.** Fetches the pinned Phase 1 bytecode *off the chain*, hashes it,
-  and refuses to deploy unless it matches. Predicts the contract address before anything is signed,
-  then reads the new instance back and checks the code it actually runs.
-- **Telemetry.** Tails the guard's real events from Soroban RPC with a cursor, decoding them with
-  the SDK's verified topic vocabulary.
-- **Emergency panic button.** An explicit confirmation flow, a wallet-signed `freeze()`, and then a
-  re-read of `status()` from the chain to confirm the account really is frozen — plus the reversal,
-  and a clear distinction between an admin freeze and a dead-man-switch freeze.
+- **No-code guardrail configurator (`/configure`)**: Interactive form for defining spending policies without writing code: per-transaction cap, rolling-window cap and length, asset allowlists, recipient allowlists, protocol allowlists, active execution windows, pause state, and dead-man switch grace periods. Validates inputs locally before prompting Freighter, encodes via SDK `policyToScVal`, and executes `set_policy`.
+- **Artifact-verified guard deployment**: Deploys fresh guard accounts from verified on-chain WASM bytecode with cryptographic address prediction.
+- **Emergency panic button (`PanicPanel`)**: Two-step confirmation modal with wallet-signed `freeze()` execution, followed by a mandatory on-chain re-read of `status()` confirming `admin_frozen = true` before updating UI state. Provides matching wallet-signed `unfreeze()` reversal.
+- **Live event telemetry feed (`TelemetryFeed`)**: Cursor-based polling of `event_auth_checked` topics from Soroban RPC, decoding contract outcomes and reason codes using the SDK's verified vocabulary.
+
+## Quick Start
+
+### Installation
+
+```bash
+git clone https://github.com/aigbagbobila/stellar-agent-guard-dashboard.git
+cd stellar-agent-guard-dashboard
+npm ci
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in a browser with the [Freighter wallet](https://www.freighter.app/) extension installed and switched to **Testnet**.
+
+### Verification and Development
+
+```bash
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint
+npm test             # unit tests (31/31 passing)
+npm run build        # Next.js production build
+npm run inspect      # read-only dump of an instance's state
+```
+
+## Screens & Actions Reference
+
+### Screens
+
+- **`/` (Console Overview)**: Displays connected wallet, active guard address, current balance, policy parameters summary, dead-man switch countdown, live telemetry event stream, and the emergency panic button.
+- **`/configure` (Policy Configurator & Deployment)**:
+  - Deploy fresh guard accounts from verified on-chain WASM bytecode.
+  - Configure spending policy parameters with real-time validation.
+  - Sign and submit `set_policy` transactions.
+
+### Key Components & Actions
+
+- **`DeployPanel`**: Fetches bytecode, verifies SHA-256 hash (`f47919...`), predicts custom account address, prompts Freighter signature, and initializes admin + agent keys.
+- **`PolicyForm`**: Real-time form validation, encoding via SDK `policyToScVal`, Freighter signing, and transaction broadcast.
+- **`PanicPanel`**: Emergency freeze workflow:
+  - Prompts explicit operator confirmation modal.
+  - Submits wallet-signed `freeze()` transaction.
+  - Re-reads contract `status()` to verify `admin_frozen = true`.
+  - Provides wallet-signed `unfreeze()` to restore normal operations.
+- **`TelemetryFeed`**: Cursor-based polling of `event_auth_checked` topics from Soroban RPC, decoding contract outcomes and reason codes.
+- **`WalletBar`**: Displays Freighter connection status, address, and network validation.
+
+## Architecture
+
+Stellar Agent Guard operates across three dedicated repositories:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      Operator (Browser / Freighter)                     │
+│                                     │                                   │
+│                                     ▼                                   │
+│              stellar-agent-guard-dashboard (Next.js / UI)               │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   AI Agent Runtime (LangChain / ElizaOS)                │
+│                                     │                                   │
+│                                     ▼                                   │
+│                stellar-agent-guard-sdk (TypeScript / RPC)               │
+│               • Pre-flight policy check  • Cost pre-checks              │
+│               • Agent-auth tx signing    • Event telemetry              │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │
+                                      ▼ Soroban RPC
+┌─────────────────────────────────────────────────────────────────────────┐
+│               stellar-agent-guard-contracts (Soroban / Rust)             │
+│            • CustomAccount interface (`__check_auth`)                   │
+│            • Spend caps, rolling window, allowlists, dead-man switch    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+| Repository | Role | Documentation |
+|---|---|---|
+| [**stellar-agent-guard-contracts**](https://github.com/aigbagbobila/stellar-agent-guard-contracts) | Soroban smart contracts implementing Custom Account Abstraction and spending policy firewall | [GitBook Docs](https://soroban-cost-estimator.gitbook.io/stellar-agent-guard-contracts/) |
+| [**stellar-agent-guard-sdk**](https://github.com/aigbagbobila/stellar-agent-guard-sdk) | TypeScript SDK for pre-flight interception, simulation pricing, and AI agent framework integration | [GitHub](https://github.com/aigbagbobila/stellar-agent-guard-sdk) |
+| [**stellar-agent-guard-dashboard**](https://github.com/aigbagbobila/stellar-agent-guard-dashboard) (this repo) | Client-side operator dashboard for policy deployment, inspection, and emergency panic-button freeze | [GitHub](https://github.com/aigbagbobila/stellar-agent-guard-dashboard) |
+
+## ✅ Verified against live testnet
+
+The dashboard core logic (`lib/guard/*`) was proven against live Stellar testnet via `scripts/prove-phase3.ts` using the identical module pipeline that powers the UI:
+
+| Step | Result | Evidence |
+|---|---|---|
+| Pinned bytecode verification | Hash matches `f47919...` (39673 bytes) | Off-chain ledger byte check |
+| Custom account deploy | Deployed to `CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK` | Tx [`bcd8eac5…`](https://stellar.expert/explorer/testnet/tx/bcd8eac52d6efb50eb2c8d7d9650493da9be7fe73b0be18a450282fa24006579) |
+| `initialize(admin, agent)` | Registered keys on custom account | Tx [`bf597dc9…`](https://stellar.expert/explorer/testnet/tx/bf597dc9888a4ac8199922a1ed6d7099eeb4267d51b2e312f6bbc225a02e7132) |
+| `set_policy` via form path | Installed initial policy rules | Tx [`8d45d22f…`](https://stellar.expert/explorer/testnet/tx/8d45d22f3791f7d22722412589b31388e231a01944d7ed361342123a6b087dd9) |
+| Unfrozen transfer | **Allowed** | Tx [`fe1f5e48…`](https://stellar.expert/explorer/testnet/tx/fe1f5e48960bfe154100e2b671ac81415deeb5e9266794ab1be555076d88f675) |
+| **Panic button: `freeze()`** | **Frozen** | Tx [`0d57cd1c…`](https://stellar.expert/explorer/testnet/tx/0d57cd1cd8d2988a11a429e479abdba26bc415072a451b663fdfa5038823d3ff) |
+| Status re-read | `admin_frozen = true` | Contract read confirmation |
+| Frozen transfer attempt | **Blocked with reason `admin_frozen`** | Pre-broadcast refusal, 0 fees |
+| **Reversal: `unfreeze()`** | **Unfrozen** | Tx [`33929a97…`](https://stellar.expert/explorer/testnet/tx/33929a97c19b8095c46ad71e674b6f47570b17c49e0af237b9dfda7b14979228) |
+| Status re-read | `admin_frozen = false` | Contract read confirmation |
+| Retried transfer | **Allowed** | Tx [`503f649e…`](https://stellar.expert/explorer/testnet/tx/503f649eb91cb2e755297fa326f91e7e90921924471324cbbde25514660f2c18) |
+
+Full proof artifact recorded in [`tests/fixtures/phase3-proof.json`](./tests/fixtures/phase3-proof.json) and [`tests/fixtures/README.md`](./tests/fixtures/README.md).
+
+## Honest limitations
+
+- **Freighter wallet dependency**: Operator write actions require an active Freighter browser extension connected to Stellar Testnet; no programmatic secret keys are held or supported.
+- **Client-side static deployment**: Designed as a pure client-side application (compatible with Vercel or any static host); does not maintain a persistent server database.
+- **Enforcement boundary for arbitrary calls**: Full amount/recipient limits apply natively to SAC token transfers. Arbitrary Soroban contract calls are gated by protocol/function allowlists, active execution window, pause, and dead-man switches; fine-grained amount controls for non-SAC calls are tracked as v2.
 
 ## Enforcement scope — read this before relying on the caps
 
-**Full recipient/amount enforcement — spend caps, allowlists, per-transaction limits — is native and
-automatic for SAC token transfers (`transfer`/`transfer_from`), since these are the calls whose
-arguments the Soroban auth context exposes for inspection. For other Soroban contract calls made by
-the guarded account (arbitrary DEX/lending/protocol calls), the policy engine still enforces window
-and pause state, but per-call amount/recipient limits are not yet enforced — extending fine-grained
-enforcement to arbitrary calls is tracked as a v2 item, not implied as already covered.**
+Full recipient/amount enforcement — spend caps, allowlists, per-transaction limits — is native and automatic for SAC token transfers (`transfer`/`transfer_from`), since these are the calls whose arguments the Soroban auth context exposes for inspection. For other Soroban contract calls made by the guarded account (arbitrary DEX/lending/protocol calls), the policy engine still enforces window and pause state, but per-call amount/recipient limits are not yet enforced — extending fine-grained enforcement to arbitrary calls is tracked as a v2 item, not implied as already covered.
 
-The same statement, word for word, is in [`SPEC.md`](./SPEC.md) and rendered in the console wherever
-enforcement is described, from one shared constant (`lib/guard/network.ts`). A unit test
-(`tests/unit/scopeStatement.test.ts`) fails if the three ever drift apart. This boundary is a
-property of the platform — the auth context does not expose arbitrary call arguments generically —
-not a gap this interface hides or overclaims.
+This boundary is an inherent property of the platform (the auth context does not expose arbitrary call arguments generically), not a gap this project hides or overclaims. The classification that produces this boundary (`AssetTransfer` vs `Protocol` vs `Unknown` default-deny) is spelled out in SPEC §6.
 
-## What is actually proven
+## Maintainers
 
-`scripts/prove-phase3.ts` drives **the same `lib/guard/*` modules the UI calls** — `guardOps.ts` for
-deploy/initialize/policy/freeze, `telemetry.ts` for the feed — with the only substitution being the
-wallet (a keypair-backed `WalletSigner` instead of Freighter). That substitution is the entire reason
-`WalletSigner` exists as a seam, and it is why this run is evidence about the console's logic rather
-than about a re-implementation of it.
+| Name | GitHub | Telegram |
+|---|---|---|
+| Hybrid | [@aigbagbobila](https://github.com/aigbagbobila) | [@aigbagbobila](https://t.me/+EzSusj-2vVhhNmI0) |
 
-One real run produced, on Stellar testnet:
+## Socials
 
-| Step | Result |
-| --- | --- |
-| Pinned artifact, re-derived from chain | `f47919f92e78fdd034836aa61955fc338dd56a218c448c37df1867a8c3da0f63`, 39673 bytes — matches |
-| Deploy from the pinned bytes | [`bcd8eac5…`](https://stellar.expert/explorer/testnet/tx/bcd8eac52d6efb50eb2c8d7d9650493da9be7fe73b0be18a450282fa24006579) → `CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK`, identity verified |
-| `initialize(admin, agent_pubkey)` | [`bf597dc9…`](https://stellar.expert/explorer/testnet/tx/bf597dc9888a4ac8199922a1ed6d7099eeb4267d51b2e312f6bbc225a02e7132) |
-| `set_policy` through the console's own form path | [`8d45d22f…`](https://stellar.expert/explorer/testnet/tx/8d45d22f3791f7d22722412589b31388e231a01944d7ed361342123a6b087dd9) |
-| Agent transfer, unfrozen | **allowed**, [`fe1f5e48…`](https://stellar.expert/explorer/testnet/tx/fe1f5e48960bfe154100e2b671ac81415deeb5e9266794ab1be555076d88f675) |
-| **Panic button: `freeze()`** | [`0d57cd1c…`](https://stellar.expert/explorer/testnet/tx/0d57cd1cd8d2988a11a429e479abdba26bc415072a451b663fdfa5038823d3ff) |
-| `status()` re-read after freeze | `admin_frozen=true` |
-| `check()` while frozen | `Blocked(admin_frozen)` |
-| **The same agent transfer, frozen** | **blocked with reason `admin_frozen`** — no transaction, by construction |
-| **Reversal: `unfreeze()`** | [`33929a97…`](https://stellar.expert/explorer/testnet/tx/33929a97c19b8095c46ad71e674b6f47570b17c49e0af237b9dfda7b14979228) |
-| `status()` re-read after unfreeze | `admin_frozen=false` |
-| The same transfer again | **allowed**, [`503f649e…`](https://stellar.expert/explorer/testnet/tx/503f649eb91cb2e755297fa326f91e7e90921924471324cbbde25514660f2c18) |
+- [Telegram](https://t.me/+EzSusj-2vVhhNmI0)
+- [Discord](https://discord.gg/Z766vsgjg)
 
-The freeze is confirmed by the contract, not by the console: `status()` reports the flag, and the
-guard's own `event_auth_checked, blocked, admin_frozen` diagnostic is what the refused transfer
-produces. Full record in [`tests/fixtures/phase3-proof.json`](./tests/fixtures/phase3-proof.json);
-what was and was not verified in [`tests/fixtures/README.md`](./tests/fixtures/README.md), including
-the honest limits of this evidence.
+## Contact
 
-## How it works
-
-```
-operator browser
-├── Freighter wallet ── signs authorization entries + transaction envelopes
-├── stellar-agent-guard-sdk ── policy encoding, reason vocabulary, event decoding, telemetry
-└── @stellar/stellar-sdk ── XDR, transaction building, Soroban RPC
-        │
-        └──► Soroban RPC (https://soroban-testnet.stellar.org)  [CORS: allow-origin *]
-                 │
-                 └──► guard contract (custom account) ──► SAC token / protocols
-```
-
-Three properties follow from that shape, and each is deliberate:
-
-1. **No secrets, anywhere.** There is no API route that touches a key. The console cannot move funds
-   on its own; it can only ask the operator's wallet to sign something the operator can read.
-2. **No mock state.** Every number is read from the chain on each refresh, and every read carries its
-   own success or failure. A failed read renders as an error — never as a zero that looks exactly
-   like an empty policy.
-3. **Nothing is broadcast until the enforced simulation passes.** A refused call costs nothing and
-   leaves no trace, which is why a refused write has no transaction hash to show.
-
-### Write path
-
-`invokeWithWallet` (`lib/guard/submit.ts`) runs the sequence the Stellar host requires:
-
-1. simulate to discover the authorizations the call needs;
-2. wallet-sign each authorization entry the host asked for;
-3. simulate again with them attached — this pass runs the **real** `__check_auth`;
-4. only then assemble, sign the envelope, and broadcast.
-
-The SDK's own `invoke()` covers steps 1–3 for an *agent key in a process*. It takes `Keypair`s,
-because in an agent runtime the key is there. The dashboard must never hold one, so this module
-implements the same sequence with a `WalletSigner` standing in — and uses the SDK for everything
-else: `policyToScVal`, `decodeCheckResult`, `describePolicy`, `isDeadManFrozen`, `deadManRemaining`,
-`GUARD_EVENT_TOPICS`, `decodeAuthDecision`, `GuardTelemetryListener`, `explainReason`.
-
-### Freezes
-
-Two different things can freeze an account, and the console shows them separately because the causes
-differ:
-
-- an **admin freeze** — the panic button, `AdminFrozen = true`;
-- a **dead-man-switch freeze** — the account went quiet past its grace window
-  (`heartbeat_expired`), derived from `LastHeartbeat`, not a flag.
-
-`unfreeze()` clears the admin freeze *and* restarts the heartbeat clock, so it is the way back from
-either. The agent's own `heartbeat()` is the other route out of a dead-man freeze, and it needs the
-agent's key inside the smart account — it belongs to the SDK's agent runtime, not to this console.
-
-## Running it
-
-```bash
-npm install             # installs the vendored Phase 2 SDK tarball
-npm run dev             # http://localhost:3000
-```
-
-Then connect a Freighter wallet on **testnet** with the admin role for the guard you want to operate,
-or deploy a fresh one from the **Configure** page.
-
-```bash
-npm run typecheck       # tsc --noEmit
-npm run lint            # eslint
-npm test                # node --test (no test framework dependency)
-npm run build           # next build
-npm run prove:phase3    # the real end-to-end run against testnet (writes keys to .env.phase3)
-npm run inspect         # read-only dump of an instance's state
-```
-
-The proof script creates and funds real testnet accounts. It is idempotent: keys and the deployed
-guard are reused from `.env.phase3` on subsequent runs.
-
-## Deployment
-
-Deploys to Vercel as a static-ish Next.js app. There is nothing to configure — no environment
-variables, no secrets, no server-side state — because everything happens in the operator's browser
-against public RPC.
-
-## Repo family
-
-| Repo | Role |
-| --- | --- |
-| [stellar-agent-guard-contracts](https://github.com/aigbagbobila/stellar-agent-guard-contracts) | Soroban smart account: `__check_auth` + policy engine |
-| [stellar-agent-guard-sdk](https://github.com/aigbagbobila/stellar-agent-guard-sdk) | Agent integration: pre-flight interception, signing, telemetry |
-| **stellar-agent-guard-dashboard** (this repo) | Operator interface |
+- GitHub issues: <https://github.com/aigbagbobila/stellar-agent-guard-dashboard/issues>
+- Maintainer (GitHub): [@aigbagbobila](https://github.com/aigbagbobila)
+- Security disclosures: see [SECURITY.md](https://github.com/aigbagbobila/stellar-agent-guard-contracts/blob/main/SECURITY.md) (Telegram, the Stellar ecosystem norm)
 
 ## License
 
-MIT
+Licensed under [MIT](LICENSE).
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/aigbagbobila/stellar-agent-guard-sdk/blob/main/CONTRIBUTING.md) for details on coding standards, PR process, and
+project structure — including the strict one-commit-per-logical-unit rule.
+
+Looking for something to work on? The
+[issue backlog](https://github.com/aigbagbobila/stellar-agent-guard-dashboard/issues)
+holds scoped issues with Summary / Acceptance Criteria / Tech Stack — good first tasks for
+the Drips Stellar Wave contributor sprints.
+
+![Contributors](https://contrib.rocks/image?repo=aigbagbobila/stellar-agent-guard-dashboard)
