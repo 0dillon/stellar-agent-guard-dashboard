@@ -31,12 +31,19 @@ An autonomous agent holding a wallet has a single point of failure: one prompt-i
 >
 > | Phase 2 exit criterion | State |
 > | --- | --- |
-> | SDK published to npm | **not met** — `npm view stellar-agent-guard-sdk` returns `E404` (blocked by missing registry publish credentials) |
+> | SDK published to npm | **met** — `npm view stellar-agent-guard-sdk` returns version 0.1.0 |
 > | CI green on `main` | **met** — merged and CI green on `main` (GitHub Actions run `35063436332` passed) |
 > | Real integration tests against testnet | **met** — `tests/fixtures/integration-evidence.md` in SDK repo, 5/5 live |
 > | Phase 2 merged | **met** — PR #2 merged into `main` (commit `897708a`) |
 >
-> **What this means in practice:** The SDK is consumed as a vendored tarball (`vendor/stellar-agent-guard-sdk-0.1.0.tgz`) matching the merged Phase 2 `main` branch. Everything claimed about Phase 1 and Phase 3 — the artifact deployed, the policy installed, the freeze confirmed — is proven against real public testnet deployments. When Phase 2 is published to npm, this tarball dependency will be swapped for the published package and this provisional note will be retired.
+> **What this means in practice:** The SDK publish criterion is satisfied. Everything claimed about Phase 1 and Phase 3 — the artifact deployed, the policy installed, the freeze confirmed — is proven against real public testnet deployments.
+>
+> ```bash
+> $ npm view stellar-agent-guard-sdk
+>
+> stellar-agent-guard-sdk@0.1.0 | MIT | deps: 1 | versions: 1
+> Integration bridge between AI agent frameworks and stellar-agent-guard smart accounts: pre-flight policy interception, agent-auth transaction signing, cost pre-checks, and on-chain event telemetry. Full recipient/amount enforcement — spend caps, allowlist
+> ```
 
 ## 🎯 What makes this different
 
