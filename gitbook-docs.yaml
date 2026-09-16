@@ -1,0 +1,28 @@
+site:
+  title: Stellar Agent Guard — Dashboard
+  structure:
+    - type: section
+      key: section-dashboard
+      title: Dashboard Documentation
+      default: true
+      path: dashboard
+      children:
+        - type: space
+          key: space-getting-started
+          title: Getting Started
+          path: getting-started
+          default: true
+          content:
+            directory: ./
+        - type: space
+          key: space-concepts
+          title: Concepts
+          path: concepts
+          content:
+            directory: ./concepts
+        - type: space
+          key: space-screens
+          title: Screens & Actions
+          path: screens
+          content:
+            directory: ./screens
