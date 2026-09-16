@@ -2,7 +2,7 @@
   "network": "testnet",
   "rpcUrl": "https://soroban-testnet.stellar.org",
   "networkPassphrase": "Test SDF Network ; September 2015",
-  "ranAt": "2026-09-15T14:14:35.291Z",
+  "ranAt": "2026-09-16T11:52:10.153Z",
   "enforcementScopeStatement": "Full recipient/amount enforcement — spend caps, allowlists, per-transaction limits — is native and automatic for SAC token transfers (`transfer`/`transfer_from`), since these are the calls whose arguments the Soroban auth context exposes for inspection. For other Soroban contract calls made by the guarded account (arbitrary DEX/lending/protocol calls), the policy engine still enforces window and pause state, but per-call amount/recipient limits are not yet enforced — extending fine-grained enforcement to arbitrary calls is tracked as a v2 item, not implied as already covered.",
   "note": "Produced by scripts/prove-phase3.ts, which drives the same lib/guard modules the console calls, with the wallet substituted for a keypair. Every transaction hash below is a real testnet transaction, re-readable from the RPC.",
   "artifact": {
@@ -15,21 +15,21 @@
     "detail": "Phase 1's instance runs f47919f92e78fdd0… (39673 bytes), matching the pinned artifact"
   },
   "accounts": {
-    "admin": "GCEJPO5S6IQQFWPZR2ZJ2SHQ57RM4OWHNRX25BQCOYBZRLTO3OV3SXBJ",
-    "agent": "GCIBTDRLXBIR6TGIW4UJWAIPWB6GGB6S5GXBSY4A5DEXYVV673HLATX4",
-    "agentRawEd25519Pubkey": "90198e2bb8511f4cc8b7289b010fb07c6307d2e9ae196380e8c97c56befeceb0",
-    "issuer": "GAI6FYGDV7SO26YR3RPQ7NDDDO3QUZF35VJEKR2H3CBJKO4GIAULJMU2",
-    "recipient": "GCKGXI7S74OOXTMMADMRTNGQSW4ZI3ILZZSHYF6656WLSLUFQ6MWSVV7"
+    "admin": "GAJ3OOIJEVKITVIE5AIL6TOSHC6BRUXOXCNJI7EWZQB5B3E5RYR4PVLR",
+    "agent": "GBRIL5K2DPESLTCFFQJDLBVLJGDYHJT6ADCUBC4YDJTJIN4BTBDL5DL3",
+    "agentRawEd25519Pubkey": "6285f55a1bc925cc452c123586ab498783a67e00c5408b981a669437819846be",
+    "issuer": "GCW2VC7RRKEZL52OGNGCTEY63XDHCI3JCNXLU5M7IV6JB2LUCHV2VJHW",
+    "recipient": "GBR5GXNRINFISPV4HTXSSSZAPNBJOXUE6PSK5EC5OD7J7LWSYNVBO2GD"
   },
   "tokenCreate": {
-    "hash": "f460fcd1d6b639ad5817a727fc1c7d13bd5746974306b013f0bc699fac0a93b1",
-    "ledger": 4691622,
-    "token": "CA2ZYESXGJBHLT2ZDS7XRJLLRD4LANPDTRROTXG46LQNWUVE5ETSQTCO"
+    "hash": "1a78cf3255153ea5e76c8e370b3d89f754c6d0e07ea2f9663930e823bf428704",
+    "ledger": 4707194,
+    "token": "CB2M5YFEI74KVKZVES4UQNY3FLHMYE5R24EY2OSHB5LJH5FI2IJMSP5I"
   },
-  "token": "CA2ZYESXGJBHLT2ZDS7XRJLLRD4LANPDTRROTXG46LQNWUVE5ETSQTCO",
+  "token": "CB2M5YFEI74KVKZVES4UQNY3FLHMYE5R24EY2OSHB5LJH5FI2IJMSP5I",
   "deploy": {
-    "predicted": "CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK",
-    "guard": "CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK",
+    "predicted": "CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ",
+    "guard": "CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ",
     "verifiedAgainstPin": true,
     "identity": {
       "reportedWasmHash": "f47919f92e78fdd034836aa61955fc338dd56a218c448c37df1867a8c3da0f63",
@@ -39,46 +39,46 @@
     },
     "steps": [
       {
-        "label": "create_custom_contract (wasm f47919f92e78…) → CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK",
+        "label": "create_custom_contract (wasm f47919f92e78…) → CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ",
         "kind": "submitted",
-        "hash": "bcd8eac52d6efb50eb2c8d7d9650493da9be7fe73b0be18a450282fa24006579",
-        "ledger": 4691623
+        "hash": "6bbe24479a5a696e4671555da1573222b43fbeb231ba6c34384f1402b6d57c80",
+        "ledger": 4707196
       }
     ]
   },
-  "guard": "CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK",
+  "guard": "CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ",
   "initialize": {
-    "hash": "bf597dc9888a4ac8199922a1ed6d7099eeb4267d51b2e312f6bbc225a02e7132",
-    "ledger": 4691624
+    "hash": "caa76dcb5e60270ad922a893f3e1f92d109a1fcd65e1a60369ebebe9e6a18175",
+    "ledger": 4707198
   },
   "setPolicy": {
-    "hash": "8d45d22f3791f7d22722412589b31388e231a01944d7ed361342123a6b087dd9",
-    "ledger": 4691625
+    "hash": "b44d67a3597aa435900b79c92e11ce62d1e015b7799645d64e9d24f471f52c02",
+    "ledger": 4707199
   },
   "trustline": {
-    "hash": "527de387e2feb758e5f949402f80dff9dfb5e0a731473fdf2f001c2689dca26d",
-    "ledger": 4691626
+    "hash": "d64923c014ecae9635f32d4cd90665cbe1428408a75acb753bebd99ce7ebbf1d",
+    "ledger": 4707200
   },
   "mint": {
-    "hash": "49d50a34ff340ca887428aaa806d4904c8f3b08d4131eaecda53f0e16781c1f3",
-    "ledger": 4691627,
+    "hash": "f15367c7f70c61741848d5eb0902e452396d95b2c8e5499c7aee166d6a7cb5c7",
+    "ledger": 4707202,
     "amount": "100000"
   },
   "transferWhileUnfrozen": {
     "kind": "allowed",
-    "hash": "fe1f5e48960bfe154100e2b671ac81415deeb5e9266794ab1be555076d88f675",
-    "ledger": 4691628
+    "hash": "21eb2949b343aafa2eff7504c32e9b5f07f0024b55bf2f762a317b8abe059db1",
+    "ledger": 4707204
   },
   "freeze": {
-    "hash": "0d57cd1cd8d2988a11a429e479abdba26bc415072a451b663fdfa5038823d3ff",
-    "ledger": 4691629
+    "hash": "334d860c33c483311121c14a52d3a93d5ebf5b956f0696dd3e071be5b61e2ead",
+    "ledger": 4707205
   },
   "statusAfterFreeze": {
     "admin_frozen": true,
     "has_policy": true,
     "heartbeat_expired": false,
-    "last_heartbeat": "1789481712",
-    "now": "1789481732"
+    "last_heartbeat": "1789559582",
+    "now": "1789559612"
   },
   "checkWhileFrozen": [
     "Blocked",
@@ -87,13 +87,13 @@
   "transferWhileFrozen": {
     "kind": "blocked",
     "reason": "admin_frozen",
-    "detail": "HostError: Error(Auth, InvalidAction)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CA2ZYESXGJBHLT2ZDS7XRJLLRD4LANPDTRROTXG46LQNWUVE5ETSQTCO, topics:[error, Error(Auth, InvalidAction)], data:[\"failed account authentication with error\", CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK, Error(Contract, #10)]\n   1: [Failed Diagnostic Event (not emitted)] contract:CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK, topics:[error, Error(Contract, #10)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   2: [Failed Contract Event (not emitted)] contract:CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK, topics:[event_auth_checked, blocked, admin_frozen], data:{}\n   3: [Diagnostic Event] contract:CA2ZYESXGJBHLT2ZDS7XRJLLRD4LANPDTRROTXG46LQNWUVE5ETSQTCO, topics:[fn_call, CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK, __check_auth], data:[Bytes(c451cbc67d278ae084d13d75a22df96ee9bafcd804957375c7dd899f91262161), Bytes(71e0769189cc86af26f095abe704eb80d22048bb87451a32e478afea8922fdc33a62dcd4e823fbcf7673c9b421926fc09420ca02cc3951cbd7b573e250d7af0a), [[Contract, {args: [CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK, GCKGXI7S74OOXTMMADMRTNGQSW4ZI3ILZZSHYF6656WLSLUFQ6MWSVV7, 10], contract: CA2ZYESXGJBHLT2ZDS7XRJLLRD4LANPDTRROTXG46LQNWUVE5ETSQTCO, fn_name: transfer}]]]\n   4: [Diagnostic Event] topics:[fn_call, CA2ZYESXGJBHLT2ZDS7XRJLLRD4LANPDTRROTXG46LQNWUVE5ETSQTCO, transfer], data:[CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK, GCKGXI7S74OOXTMMADMRTNGQSW4ZI3ILZZSHYF6656WLSLUFQ6MWSVV7, 10]\n",
+    "detail": "HostError: Error(Auth, InvalidAction)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CB2M5YFEI74KVKZVES4UQNY3FLHMYE5R24EY2OSHB5LJH5FI2IJMSP5I, topics:[error, Error(Auth, InvalidAction)], data:[\"failed account authentication with error\", CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ, Error(Contract, #10)]\n   1: [Failed Diagnostic Event (not emitted)] contract:CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ, topics:[error, Error(Contract, #10)], data:\"escalating Ok(ScErrorType::Contract) frame-exit to Err\"\n   2: [Failed Contract Event (not emitted)] contract:CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ, topics:[event_auth_checked, blocked, admin_frozen], data:{}\n   3: [Diagnostic Event] contract:CB2M5YFEI74KVKZVES4UQNY3FLHMYE5R24EY2OSHB5LJH5FI2IJMSP5I, topics:[fn_call, CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ, __check_auth], data:[Bytes(b376b9aa7f1c526038c1201c36526b2df55aa240f5cc228e7db9af2f41f738c2), Bytes(6496bad89dcb876820dfd1af78b6cd190804d2a40578d894efcc74c067325e4faa6f2acd3b7f0258fea98745824bc145fd9056236332184be7449fb54182fd07), [[Contract, {args: [CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ, GBR5GXNRINFISPV4HTXSSSZAPNBJOXUE6PSK5EC5OD7J7LWSYNVBO2GD, 10], contract: CB2M5YFEI74KVKZVES4UQNY3FLHMYE5R24EY2OSHB5LJH5FI2IJMSP5I, fn_name: transfer}]]]\n   4: [Diagnostic Event] topics:[fn_call, CB2M5YFEI74KVKZVES4UQNY3FLHMYE5R24EY2OSHB5LJH5FI2IJMSP5I, transfer], data:[CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ, GBR5GXNRINFISPV4HTXSSSZAPNBJOXUE6PSK5EC5OD7J7LWSYNVBO2GD, 10]\n",
     "diagnosticEvents": [
       {
         "kind": "auth_checked",
         "topic": "event_auth_checked",
         "source": "diagnostic",
-        "contractId": "CC6VDBH5M473O4XUPD5GNRVIPB6CJ4U6IZCITF7XLKNLMWZPP3U5BMTK",
+        "contractId": "CDMBPI64FS3RZW6G23NCDPLBY5GTKX7TSVZZSHE6ZQX4XAIV3HCPXUDJ",
         "ledger": null,
         "ledgerClosedAt": null,
         "transactionHash": null,
@@ -107,20 +107,20 @@
     ]
   },
   "unfreeze": {
-    "hash": "33929a97c19b8095c46ad71e674b6f47570b17c49e0af237b9dfda7b14979228",
-    "ledger": 4691630
+    "hash": "0df6d32e74c9d7a4befa24bc96a6b0a3d46dc11d5701b2b9367e3191a80cf634",
+    "ledger": 4707207
   },
   "statusAfterUnfreeze": {
     "admin_frozen": false,
     "has_policy": true,
     "heartbeat_expired": false,
-    "last_heartbeat": "1789481737",
-    "now": "1789481737"
+    "last_heartbeat": "1789559622",
+    "now": "1789559622"
   },
   "transferAfterUnfreeze": {
     "kind": "allowed",
-    "hash": "503f649eb91cb2e755297fa326f91e7e90921924471324cbbde25514660f2c18",
-    "ledger": 4691632
+    "hash": "67bb18f7b7ebe127381f13c1f4a3ce3048a4d5e89e1f0e8c854aebb005f603af",
+    "ledger": 4707209
   },
   "telemetry": {
     "eventCount": 6,
@@ -135,22 +135,22 @@
       {
         "kind": "initialized",
         "source": "ledger",
-        "ledger": 4691624,
-        "tx": "bf597dc9888a4ac8199922a1ed6d7099eeb4267d51b2e312f6bbc225a02e7132",
+        "ledger": 4707198,
+        "tx": "caa76dcb5e60270ad922a893f3e1f92d109a1fcd65e1a60369ebebe9e6a18175",
         "decision": null
       },
       {
         "kind": "policy_set",
         "source": "ledger",
-        "ledger": 4691625,
-        "tx": "8d45d22f3791f7d22722412589b31388e231a01944d7ed361342123a6b087dd9",
+        "ledger": 4707199,
+        "tx": "b44d67a3597aa435900b79c92e11ce62d1e015b7799645d64e9d24f471f52c02",
         "decision": null
       },
       {
         "kind": "auth_checked",
         "source": "ledger",
-        "ledger": 4691628,
-        "tx": "fe1f5e48960bfe154100e2b671ac81415deeb5e9266794ab1be555076d88f675",
+        "ledger": 4707204,
+        "tx": "21eb2949b343aafa2eff7504c32e9b5f07f0024b55bf2f762a317b8abe059db1",
         "decision": {
           "result": "allowed",
           "reason": null,
@@ -160,22 +160,22 @@
       {
         "kind": "frozen",
         "source": "ledger",
-        "ledger": 4691629,
-        "tx": "0d57cd1cd8d2988a11a429e479abdba26bc415072a451b663fdfa5038823d3ff",
+        "ledger": 4707205,
+        "tx": "334d860c33c483311121c14a52d3a93d5ebf5b956f0696dd3e071be5b61e2ead",
         "decision": null
       },
       {
         "kind": "unfrozen",
         "source": "ledger",
-        "ledger": 4691630,
-        "tx": "33929a97c19b8095c46ad71e674b6f47570b17c49e0af237b9dfda7b14979228",
+        "ledger": 4707207,
+        "tx": "0df6d32e74c9d7a4befa24bc96a6b0a3d46dc11d5701b2b9367e3191a80cf634",
         "decision": null
       },
       {
         "kind": "auth_checked",
         "source": "ledger",
-        "ledger": 4691632,
-        "tx": "503f649eb91cb2e755297fa326f91e7e90921924471324cbbde25514660f2c18",
+        "ledger": 4707209,
+        "tx": "67bb18f7b7ebe127381f13c1f4a3ce3048a4d5e89e1f0e8c854aebb005f603af",
         "decision": {
           "result": "allowed",
           "reason": null,
@@ -189,8 +189,8 @@
     "admin_frozen": false,
     "has_policy": true,
     "heartbeat_expired": false,
-    "last_heartbeat": "1789481737",
-    "now": "1789481747"
+    "last_heartbeat": "1789559622",
+    "now": "1789559637"
   },
   "passed": true
 }
