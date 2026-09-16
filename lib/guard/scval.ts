@@ -8,15 +8,25 @@
 
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 
+async function getSubtleCrypto(): Promise<SubtleCrypto> {
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.subtle) {
+    return globalThis.crypto.subtle;
+  }
+  const nodeCrypto = await import("node:crypto");
+  return nodeCrypto.webcrypto.subtle as unknown as SubtleCrypto;
+}
+
 /** SHA-256 of arbitrary bytes, as lowercase hex. */
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", toArrayBuffer(bytes));
+  const subtle = await getSubtleCrypto();
+  const digest = await subtle.digest("SHA-256", toArrayBuffer(bytes));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** SHA-256 as raw bytes. */
 export async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", toArrayBuffer(bytes));
+  const subtle = await getSubtleCrypto();
+  const digest = await subtle.digest("SHA-256", toArrayBuffer(bytes));
   return new Uint8Array(digest);
 }
 
