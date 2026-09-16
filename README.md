@@ -192,7 +192,7 @@ Licensed under [MIT](LICENSE).
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/aigbagbobila/stellar-agent-guard-sdk/blob/main/CONTRIBUTING.md) for details on coding standards, PR process, and
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on coding standards, PR process, and
 project structure — including the strict one-commit-per-logical-unit rule.
 
 Looking for something to work on? The
