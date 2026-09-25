@@ -207,5 +207,5 @@ driving the identical library code headlessly. Files under `lib/guard/` are the 
 React components are thin over them and are not covered by automated tests.
 
 ## 10. Architecture Decision Records
-Key architectural decisions are documented in ADRs under \docs/adr/\:
+Key architectural decisions are documented in ADRs under `docs/adr/`:
 - [ADR 002 - Diagnostic Simulation for Rejected Transaction Visibility](docs/adr/002-diagnostic-simulation-for-rejections.md)
