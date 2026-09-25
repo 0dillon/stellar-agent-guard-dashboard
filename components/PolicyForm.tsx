@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { PolicyDraft } from "../lib/guard/policyForm.ts";
 import {
   EMPTY_DRAFT,
@@ -11,6 +11,14 @@ import {
 import { installPolicy, revokePolicy } from "../lib/guard/guardOps.ts";
 import type { InvokeResult } from "../lib/guard/submit.ts";
 import { refusedEventsFromDiagnostics } from "../lib/guard/telemetry.ts";
+import {
+  exportAssetCapsCsv,
+  exportAssetCapsJson,
+  mergeAssetCapOverrides,
+  parseAssetCapsCsv,
+  parseAssetCapsJson,
+  type AssetCapChange,
+} from "../lib/guard/assetCapsCsv.ts";
 import { useGuard } from "./GuardProvider.tsx";
 import { ErrorBlock, ScopeNotice, starLink } from "./bits.tsx";
 
@@ -34,6 +42,9 @@ export function PolicyForm() {
     { kind: "invalid"; issues: string[] } | { kind: "invoked"; result: InvokeResult } | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+  const [assetCapChanges, setAssetCapChanges] = useState<Record<string, AssetCapChange>>({});
+  const csvInput = useRef<HTMLInputElement>(null);
+  const jsonInput = useRef<HTMLInputElement>(null);
 
   // Editing starts from the policy that is actually installed, not from an empty
   // form that looks like a reset. With nothing installed yet, it starts empty.
@@ -48,6 +59,31 @@ export function PolicyForm() {
 
   function set<K extends keyof PolicyDraft>(key: K, value: PolicyDraft[K]) {
     setDraft((current) => ({ ...(current ?? installedDraft), [key]: value }));
+  }
+
+  function updateAssetCaps(next: PolicyDraft["assetCaps"]) {
+    set("assetCaps", next);
+  }
+
+  async function importAssetCaps(file: File, format: "csv" | "json") {
+    try {
+      const imported = format === "csv" ? parseAssetCapsCsv(await file.text()) : parseAssetCapsJson(await file.text());
+      const merged = mergeAssetCapOverrides(effective.assetCaps, imported);
+      updateAssetCaps(merged.rows);
+      setAssetCapChanges((current) => ({ ...current, ...merged.changes }));
+      setError(null);
+    } catch (caught) {
+      setError(`Asset-cap import failed: ${caught instanceof Error ? caught.message : String(caught)}`);
+    }
+  }
+
+  function downloadAssetCaps(filename: string, content: string) {
+    const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function submit() {
@@ -176,6 +212,124 @@ export function PolicyForm() {
             </span>
           </label>
 
+          <div className="field">
+            <span className="lbl">Per-asset cap overrides</span>
+            <span className="hint">
+              Bulk-edit asset contract addresses and positive stroop caps. Imported rows are merged by contract address.
+            </span>
+            <div className="row" style={{ margin: "8px 0" }}>
+              <button className="secondary" type="button" onClick={() => csvInput.current?.click()} disabled={busy}>
+                Import CSV
+              </button>
+              <button className="secondary" type="button" onClick={() => jsonInput.current?.click()} disabled={busy}>
+                Import JSON
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => downloadAssetCaps("asset-cap-overrides.csv", exportAssetCapsCsv(effective.assetCaps))}
+                disabled={busy || effective.assetCaps.length === 0}
+              >
+                Export CSV
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => downloadAssetCaps("asset-cap-overrides.json", exportAssetCapsJson(effective.assetCaps))}
+                disabled={busy || effective.assetCaps.length === 0}
+              >
+                Export JSON
+              </button>
+              <input
+                ref={csvInput}
+                type="file"
+                accept=".csv,text/csv"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void importAssetCaps(file, "csv");
+                }}
+              />
+              <input
+                ref={jsonInput}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void importAssetCaps(file, "json");
+                }}
+              />
+            </div>
+            {effective.assetCaps.length > 0 && (
+              <table className="asset-caps">
+                <thead>
+                  <tr>
+                    <th>Asset contract</th>
+                    <th>Max cap (stroops)</th>
+                    <th>Symbol</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {effective.assetCaps.map((row, index) => (
+                    <tr key={row.assetContractAddress}>
+                      <td>
+                        <input
+                          aria-label={`Asset contract ${index + 1}`}
+                          value={row.assetContractAddress}
+                          onChange={(event) => {
+                            const next = [...effective.assetCaps];
+                            next[index] = { ...row, assetContractAddress: event.target.value };
+                            updateAssetCaps(next);
+                          }}
+                        />
+                        {assetCapChanges[row.assetContractAddress] && (
+                          <span className="pill ok asset-cap-badge">{assetCapChanges[row.assetContractAddress]}</span>
+                        )}
+                      </td>
+                      <td>
+                        <input
+                          aria-label={`Maximum cap ${index + 1}`}
+                          inputMode="numeric"
+                          value={row.maxCapStroops}
+                          onChange={(event) => {
+                            const next = [...effective.assetCaps];
+                            next[index] = { ...row, maxCapStroops: event.target.value };
+                            updateAssetCaps(next);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          aria-label={`Symbol ${index + 1}`}
+                          value={row.symbol}
+                          onChange={(event) => {
+                            const next = [...effective.assetCaps];
+                            next[index] = { ...row, symbol: event.target.value };
+                            updateAssetCaps(next);
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          className="secondary"
+                          type="button"
+                          aria-label={`Remove ${row.symbol || "asset override"}`}
+                          onClick={() => updateAssetCaps(effective.assetCaps.filter((_, itemIndex) => itemIndex !== index))}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
           <label className="field">
             <span className="lbl">Recipients (one per line)</span>
             <textarea
@@ -253,12 +407,12 @@ export function PolicyForm() {
         <button className="secondary" disabled={!wallet || busy} onClick={() => void revoke()}>
           Revoke policy (default deny)
         </button>
-        <button className="secondary" onClick={() => setDraft(EMPTY_DRAFT)} disabled={busy}>
+        <button className="secondary" onClick={() => { setDraft(EMPTY_DRAFT); setAssetCapChanges({}); }} disabled={busy}>
           Clear form
         </button>
         <button
           className="secondary"
-          onClick={() => setDraft(null)}
+          onClick={() => { setDraft(null); setAssetCapChanges({}); }}
           disabled={busy || draft === null}
           title="Discard edits and load the policy currently installed on chain"
         >
